@@ -58,6 +58,8 @@
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/server_parameters.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_storage_engine.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/exit.h"
 #include "mongo/util/fail_point_service.h"
@@ -308,6 +310,31 @@ Status _initialSync(OperationContext* txn, BackgroundSync* bgsync) {
     log() << "initial sync drop all databases";
     dropAllDatabasesExceptLocal(txn);
 
+    struct EnginePrepareInitialSync {
+        EnginePrepareInitialSync(OperationContext* txn) {
+            StorageEngine* engine = txn->getServiceContext()->getGlobalStorageEngine();
+            kvengine = dynamic_cast<KVStorageEngine*>(engine);
+            if (kvengine) {
+                prepareResult = kvengine->getEngine()->prepareInitialSync();
+            }
+        }
+        ~EnginePrepareInitialSync() {
+            finish();
+        }
+        void finish() {
+            if (kvengine) {
+                kvengine->getEngine()->finishInitialSync(prepareResult);
+                kvengine = nullptr;
+                prepareResult = nullptr;
+            }
+            else {
+                dassert(!prepareResult);
+            }
+        }
+        KVStorageEngine* kvengine = nullptr;
+        void *prepareResult = nullptr;
+    } prepareInitialSync(txn);
+
     if (MONGO_FAIL_POINT(initialSyncHangBeforeCopyingDatabases)) {
         log() << "initial sync - initialSyncHangBeforeCopyingDatabases fail point enabled. "
                  "Blocking until fail point is disabled.";
@@ -423,6 +450,7 @@ Status _initialSync(OperationContext* txn, BackgroundSync* bgsync) {
                           str::stream() << "initial sync failed: " << msg);
         }
     }
+    prepareInitialSync.finish();
 
     // WARNING: If the 3rd oplog sync step is removed we must reset minValid to the last entry on
     // the source server so that we don't come out of recovering until we get there (since the

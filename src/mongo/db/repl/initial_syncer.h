@@ -53,6 +53,9 @@
 #include "mongo/util/net/hostandport.h"
 
 namespace mongo {
+
+class KVStorageEngine;
+
 namespace repl {
 
 namespace {
@@ -621,6 +624,10 @@ private:
     // Contains stats on the current initial sync request (includes all attempts).
     // To access these stats in a user-readable format, use getInitialSyncProgress().
     Stats _stats;  // (M)
+
+    // for KVEngine::finishInitialSync
+    KVStorageEngine* _kvengine = nullptr;
+    void *_prepareResult = nullptr;
 };
 
 }  // namespace repl

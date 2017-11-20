@@ -163,6 +163,11 @@ add_option('lto',
     nargs=0,
 )
 
+add_option('static-libstdc++', 
+        default=True,
+        help='statically link libstdc++',
+        nargs=0)
+
 add_option('dynamic-windows',
     help='dynamically link on Windows',
     nargs=0,
@@ -895,6 +900,8 @@ envDict = dict(BUILD_ROOT=buildDir,
                )
 
 env = Environment(variables=env_vars, **envDict)
+env.Append(ENV = {'PATH' : os.environ['PATH']})
+Export('env')
 del envDict
 
 env.AddMethod(env_os_is_wrapper, 'TargetOSIs')
@@ -1553,6 +1560,9 @@ if env.TargetOSIs('posix'):
                 PROGCCFLAGS=['-fPIE'],
                 PROGLINKFLAGS=['-pie'],
             )
+
+    if has_option("static-libstdc++") and env.TargetOSIs('linux'):
+        env.Append( LINKFLAGS=["-static-libstdc++", "-static-libgcc"]  )
 
     # -Winvalid-pch Warn if a precompiled header (see Precompiled Headers) is found in the search path but can't be used.
     env.Append( CCFLAGS=["-fno-omit-frame-pointer",

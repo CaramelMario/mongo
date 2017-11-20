@@ -54,6 +54,9 @@
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/sync_source_selector.h"
 #include "mongo/db/server_parameters.h"
+#include "mongo/db/storage/storage_engine.h"
+#include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_storage_engine.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/rpc/metadata/server_selection_metadata.h"
@@ -268,6 +271,12 @@ Status InitialSyncer::startup(OperationContext* opCtx,
             return Status(ErrorCodes::ShutdownInProgress, "initial syncer shutting down");
         case State::kComplete:
             return Status(ErrorCodes::ShutdownInProgress, "initial syncer completed");
+    }
+
+    StorageEngine* engine = opCtx->getServiceContext()->getGlobalStorageEngine();
+    _kvengine = dynamic_cast<KVStorageEngine*>(engine);
+    if (_kvengine) {
+        _prepareResult = _kvengine->getEngine()->prepareInitialSync();
     }
 
     _setUp_inlock(opCtx, initialSyncMaxAttempts);
@@ -1141,6 +1150,14 @@ void InitialSyncer::_finishCallback(StatusWith<OpTimeWithHash> lastApplied) {
     // this InitialSyncer. 'onCompletion' must be destroyed outside the lock and this should happen
     // before we transition the state to Complete.
     decltype(_onCompletion) onCompletion;
+    if (_kvengine) {
+        _kvengine->getEngine()->finishInitialSync(_prepareResult);
+        _kvengine = nullptr;
+        _prepareResult = nullptr;
+    }
+    else {
+        dassert(!_prepareResult);
+    }
     {
         stdx::lock_guard<stdx::mutex> lock(_mutex);
         auto txn = makeOpCtx();

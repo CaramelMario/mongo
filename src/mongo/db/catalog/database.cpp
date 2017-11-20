@@ -64,6 +64,8 @@
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_storage_engine.h"
 #include "mongo/db/views/view_catalog.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
@@ -320,6 +322,16 @@ void Database::getStats(OperationContext* opCtx, BSONObjBuilder* output, double 
 
         indexes += collection->getIndexCatalog()->numIndexesTotal(opCtx);
         indexSize += collection->getIndexSize(opCtx);
+    }
+
+    // try get storageSize on engine layer
+    StorageEngine* engine = opCtx->getServiceContext()->getGlobalStorageEngine();
+    KVStorageEngine* kvengine = dynamic_cast<KVStorageEngine*>(engine);
+    if (kvengine) {
+        long long engineStorageSize = kvengine->getEngine()->storageSize();
+        if (engineStorageSize != 0) {
+            storageSize = engineStorageSize;
+        }
     }
 
     getViewCatalog()->iterate(opCtx, [&](const ViewDefinition& view) { nViews += 1; });

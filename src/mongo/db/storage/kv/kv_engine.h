@@ -172,5 +172,28 @@ public:
      * cleanShutdown() hasn't been called.
      */
     virtual ~KVEngine() {}
+
+    /**
+     * @return total storage size on engine layer
+     */
+    virtual long long storageSize() const {
+        return 0;
+    }
+
+    /**
+     * notify engine prepare initial sync
+     * @return custom data ptr like backup config etc.
+     */
+    virtual void* prepareInitialSync() {
+        return nullptr;
+    }
+
+    /**
+     * notify engine finish initial sync
+     * @param prepareResult return value of prepareInitialSync
+     */
+    virtual void finishInitialSync(void* prepareResult) {
+        (void)prepareResult;
+    }
 };
 }
