@@ -954,7 +954,7 @@ namespace mongo {
         // calculate which prefixes we need to drop
         std::vector<std::string> prefixesToDrop;
         prefixesToDrop.push_back(prefix);
-        if (isOplog && rocksGlobalOptions.oplogChunkWiseDelete) {
+        if (isOplog && !rocksGlobalOptions.oplogChunkWiseDelete) {
             // if we're dropping oplog, we also need to drop keys from RocksOplogKeyTracker (they
             // are stored at prefix+1)
             prefixesToDrop.push_back(rocksGetNextPrefix(prefixesToDrop[0]));
@@ -997,13 +997,30 @@ namespace mongo {
             }
         }
 
+        // don't compact a prefix under terark
+        // don't compact oplog if oplogChunkWiseDelete
+        auto needCompact = [&] {
+            if (rocksGlobalOptions.terarkEnable) {
+                if (!isOplog) {
+                    return false;
+                }
+                if (rocksGlobalOptions.separateColumnFamily && !rocksGlobalOptions.oplogChunkWiseDelete) {
+                    return true;
+                }
+                return false;
+            }
+            else {
+                if (isOplog && rocksGlobalOptions.oplogChunkWiseDelete) {
+                    return false;
+                }
+                return true;
+            }
+        };
+
         // Suggest compaction for the prefixes that we need to drop, So that
         // we free space as fast as possible.
         for (auto& prefix : prefixesToDrop) {
-            if (isOplog && rocksGlobalOptions.oplogChunkWiseDelete) {
-                break;
-            }
-            if (rocksGlobalOptions.terarkEnable && !rocksGlobalOptions.separateColumnFamily) {
+            if (!needCompact()) {
                 break;
             }
             auto s = _compactionScheduler->compactDroppedPrefix(
