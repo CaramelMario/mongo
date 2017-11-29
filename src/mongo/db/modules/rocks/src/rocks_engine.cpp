@@ -1467,7 +1467,6 @@ namespace mongo {
 
     void RocksEngine::ReclaimOplog() {
         Client::initThread("RocksEngine::ReclaimOplog");
-        auto txn = cc().makeOperationContext();
         std::unique_lock<std::mutex> oplogReclaimLock(_oplogReclaimOMutex);
         std::unordered_map<uint32_t, std::shared_ptr<RocksRecordStore>> store;
         std::string key = kOplogCollectorPrefix;
@@ -1492,6 +1491,7 @@ namespace mongo {
             std::unique_lock<std::mutex> oplogLock(oplogMutex, std::adopt_lock);
             size_t newCappedSize = 0;
 
+            auto txn = cc().makeOperationContext();
             bool needReclaim = false;
             {
                 stdx::lock_guard <stdx::mutex> lk(_oplogMapMutex);
