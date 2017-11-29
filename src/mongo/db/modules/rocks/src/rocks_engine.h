@@ -226,7 +226,7 @@ namespace mongo {
             long long dataSize;
         };
         std::unordered_map<uint32_t, OplogCollectionInit> _oplogInitializationMap;
-        std::condition_variable _oplogReclaimOCV;
+        std::condition_variable _oplogReclaimCV;
         std::mutex _oplogReclaimOMutex;
 
         // set of all prefixes that are deleted. we delete them in the background thread

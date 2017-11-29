@@ -475,7 +475,7 @@ namespace mongo {
                 cfDescriptors.emplace_back(kOplogCF, oplogOption);
                 options.listeners.emplace_back(
                     new MongoRocksOplogFlushEventListener([this](rocksdb::DB*, const rocksdb::FlushJobInfo&) {
-                        _oplogReclaimOCV.notify_one();
+                        _oplogReclaimCV.notify_one();
                     }));
             }
             else
@@ -1064,6 +1064,7 @@ namespace mongo {
     void RocksEngine::cleanShutdown() {
         _shuttingDown = true;
         if (_oplogThread) {
+            _oplogReclaimCV.notify_one();
             _oplogThread->join();
             delete _oplogThread;
         }
@@ -1476,7 +1477,7 @@ namespace mongo {
         bool retry = false;
         while (true) {
             store.clear();
-            _oplogReclaimOCV.wait_for(oplogReclaimLock, std::chrono::milliseconds(retry ? 100 : 10000));
+            _oplogReclaimCV.wait_for(oplogReclaimLock, std::chrono::milliseconds(retry ? 100 : 10000));
             retry = false;
             if (_shuttingDown) {
                 break;
